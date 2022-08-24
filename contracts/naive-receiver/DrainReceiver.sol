@@ -6,7 +6,7 @@ interface INaiveReceiverLenderPool {
     function fixedFee() external pure returns (uint256);
 }
 
-contract Attacker {
+contract DrainReceiver {
     INaiveReceiverLenderPool private pool;
 
     constructor(address _pool) {
