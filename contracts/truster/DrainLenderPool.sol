@@ -25,11 +25,6 @@ contract DrainLenderPool {
         _;
     }
 
-    modifier poolOnly {
-        require(msg.sender == address(pool), "OnlyPool: non-pool call");
-        _;
-    }
-
     function drainPool() external onlyOwner {
         flashLoanAndApprove(0);
         uint256 poolBalance = token.balanceOf(address(pool));
